@@ -31,13 +31,13 @@ class vgg_discriminator(nn.Module):
         x = self.classifier(x)
         return x
 
-def get_new_discriminator(discriminator_ckpt):
-    model = vgg_discriminator(num_classes=1)  # Adjust num_classes as needed
+    def get_new_discriminator(discriminator_ckpt):
+        model = vgg_discriminator(num_classes=1)  # Adjust num_classes as needed
 
-    # Load the model weights from the saved file
-    model.load_state_dict(torch.load(discriminator_ckpt))
+        # Load the model weights from the saved file
+        model.load_state_dict(torch.load(discriminator_ckpt))
 
-    # Set the model to evaluation mode (if needed)
-    model.eval()
+        # Set the model to evaluation mode (if needed)
+        model.eval()
 
-    return model
+        return model
