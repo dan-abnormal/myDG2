@@ -12,6 +12,7 @@ import os
 import click
 import tqdm
 import pickle
+from myDG2.VGG_discriminator.vgg_discriminator import vgg_discriminator
 import numpy as np
 import torch
 import PIL.Image
@@ -134,8 +135,10 @@ def edm_sampler(
 
 ## Discriminator architecture
 @click.option('--cond',                    help='Is it conditional discriminator?', metavar='INT',                  type=click.IntRange(min=0, max=1), default=0, show_default=True)
+@click.option('--old_disc',                    help='Is it unet?', metavar='INT',                  type=click.IntRange(min=0, max=1), default=1, show_default=True)
 
-def main(boosting, time_min, time_max, dg_weight_1st_order, dg_weight_2nd_order, cond, pretrained_classifier_ckpt, discriminator_ckpt, save_type, batch_size, do_seed, seed, num_samples, network_pkl, outdir, class_idx, device, **sampler_kwargs):
+
+def main(boosting, time_min, time_max, dg_weight_1st_order, dg_weight_2nd_order, cond, old_disc, pretrained_classifier_ckpt, discriminator_ckpt, save_type, batch_size, do_seed, seed, num_samples, network_pkl, outdir, class_idx, device, **sampler_kwargs):
     ## Set seed
     if do_seed:
         import random
@@ -159,9 +162,14 @@ def main(boosting, time_min, time_max, dg_weight_1st_order, dg_weight_2nd_order,
 
     ## Load discriminator
     discriminator = None
-    if dg_weight_1st_order != 0 or dg_weight_2nd_order != 0:
-        discriminator = classifier_lib.get_discriminator(pretrained_classifier_ckpt, discriminator_ckpt,
-                                                     net.label_dim and cond, net.img_resolution, device, enable_grad=True)
+    if(old_disc):
+        if dg_weight_1st_order != 0 or dg_weight_2nd_order != 0:
+            discriminator = classifier_lib.get_discriminator(pretrained_classifier_ckpt, discriminator_ckpt,
+                                                        net.label_dim and cond, net.img_resolution, device, enable_grad=True)
+    else:
+        discriminator = vgg_discriminator.get_new_discriminator(discriminator_ckpt)
+
+
     print(discriminator)
     vpsde = classifier_lib.vpsde()
 
