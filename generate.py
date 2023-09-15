@@ -147,6 +147,9 @@ def main(boosting, time_min, time_max, dg_weight_1st_order, dg_weight_2nd_order,
         torch.manual_seed(seed)
         torch.cuda.manual_seed_all(seed)
 
+    os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"  # Set the GPU device IDs you want to use (0 and 1 in this example)
+    device_ids = [0, 1]
+
     ## Load pretrained score network.
     print(f'Loading network from "{network_pkl}"...')
     if network_pkl.endswith(".pkl"):
@@ -155,6 +158,8 @@ def main(boosting, time_min, time_max, dg_weight_1st_order, dg_weight_2nd_order,
     elif network_pkl.endswith(".pt"):
         data1 = torch.load(network_pkl, map_location=torch.device('cpu'))
         net = data1['ema'].eval().to(device)
+
+    net = torch.nn.DataParallel(net, device_ids=device_ids).cuda()
     #data1 = torch.load(ckpt_dir, map_location=torch.device('cpu'))
     #net = data1['ema'].eval().to(device)
     #with open(network_pkl, 'rb') as f:
@@ -169,9 +174,11 @@ def main(boosting, time_min, time_max, dg_weight_1st_order, dg_weight_2nd_order,
     else:
         discriminator = vgg_discriminator.get_new_discriminator(discriminator_ckpt)
 
-
+    discriminator = torch.nn.DataParallel(discriminator, device_ids=device_ids).cuda()
     print(discriminator)
     vpsde = classifier_lib.vpsde()
+
+    device='cuda:0'
 
     ## Loop over batches.
     num_batches = num_samples // batch_size + 1
