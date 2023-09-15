@@ -31,13 +31,13 @@ def edm_sampler(
     S_churn=0, S_min=0, S_max=float('inf'), S_noise=1,
 ):
     # Adjust noise levels based on what's supported by the network.
-    sigma_min = max(sigma_min, net.sigma_min)
-    sigma_max = min(sigma_max, net.sigma_max)
+    sigma_min = max(sigma_min, net.module.sigma_min)
+    sigma_max = min(sigma_max, net.module.sigma_max)
 
     # Time step discretization.
     step_indices = torch.arange(num_steps, dtype=torch.float64, device=latents.device)
     t_steps = (sigma_max ** (1 / rho) + step_indices / (num_steps - 1) * (sigma_min ** (1 / rho) - sigma_max ** (1 / rho))) ** rho
-    t_steps = torch.cat([net.round_sigma(t_steps), torch.zeros_like(t_steps[:1])]) # t_N = 0
+    t_steps = torch.cat([net.module.round_sigma(t_steps), torch.zeros_like(t_steps[:1])]) # t_N = 0
 
     ## Settings for boosting
     S_churn_manual = 4.
@@ -64,7 +64,7 @@ def edm_sampler(
         # Increase noise temporarily.
         # gamma = min(S_churn / num_steps, np.sqrt(2) - 1) if S_min <= t_cur <= S_max else 0
         gamma_vec = torch.minimum(S_churn_vec_ / num_steps, S_churn_max) if S_min <= t_cur <= S_max else torch.zeros_like(S_churn_vec_)
-        t_hat = net.round_sigma(t_cur + gamma_vec * t_cur)
+        t_hat = net.module.round_sigma(t_cur + gamma_vec * t_cur)
         x_hat = x_cur + (t_hat ** 2 - t_cur ** 2).sqrt()[:, None, None, None] * S_noise_vec_[:, None, None,None] * randn_like(x_cur)
         #x_hat = x_cur + (t_hat ** 2 - t_cur ** 2).sqrt() * S_noise * randn_like(x_cur)
 
@@ -73,7 +73,7 @@ def edm_sampler(
         d_cur = (x_hat - denoised) / t_hat[:, None, None, None]
         ## DG correction
         if dg_weight_1st_order != 0.:
-            discriminator_guidance, log_ratio = classifier_lib.get_grad_log_ratio(discriminator, vpsde, x_hat, t_hat, net.img_resolution, time_min, time_max, class_labels, log=True)
+            discriminator_guidance, log_ratio = classifier_lib.get_grad_log_ratio(discriminator, vpsde, x_hat, t_hat, net.module.img_resolution, time_min, time_max, class_labels, log=True)
             if boosting:
                 if i % period_weight == 0:
                     discriminator_guidance[log_ratio < 0.] *= 2.
@@ -86,7 +86,7 @@ def edm_sampler(
             d_prime = (x_next - denoised) / t_next
             ## DG correction
             if dg_weight_2nd_order != 0.:
-                discriminator_guidance = classifier_lib.get_grad_log_ratio(discriminator, vpsde, x_next, t_next, net.img_resolution, time_min, time_max, class_labels, log=False)
+                discriminator_guidance = classifier_lib.get_grad_log_ratio(discriminator, vpsde, x_next, t_next, net.module.img_resolution, time_min, time_max, class_labels, log=False)
                 d_prime += dg_weight_2nd_order * (discriminator_guidance / t_next)
             x_next = x_hat + (t_next - t_hat)[:, None, None, None] * (0.5 * d_cur + 0.5 * d_prime)
 
@@ -170,7 +170,7 @@ def main(boosting, time_min, time_max, dg_weight_1st_order, dg_weight_2nd_order,
     if(old_disc):
         if dg_weight_1st_order != 0 or dg_weight_2nd_order != 0:
             discriminator = classifier_lib.get_discriminator(pretrained_classifier_ckpt, discriminator_ckpt,
-                                                        net.label_dim and cond, net.img_resolution, device, enable_grad=True)
+                                                        net.module.label_dim and cond, net.module.img_resolution, device, enable_grad=True)
     else:
         discriminator = vgg_discriminator.get_new_discriminator(discriminator_ckpt)
 
@@ -186,11 +186,11 @@ def main(boosting, time_min, time_max, dg_weight_1st_order, dg_weight_2nd_order,
     os.makedirs(outdir, exist_ok=True)
     for i in tqdm.tqdm(range(num_batches)):
         ## Pick latents and labels.
-        #latents = torch.randn([batch_size, net.img_channels, net.img_resolution, net.img_resolution], device=device)
+        #latents = torch.randn([batch_size, net.module.img_channels, net.module.img_resolution, net.module.img_resolution], device=device)
         latents = torch.randn([batch_size, 3, 32, 32], device=device)
         class_labels = None
-        if net.label_dim:
-            class_labels = torch.eye(net.label_dim, device=device)[torch.randint(net.label_dim, size=[batch_size], device=device)]
+        if net.module.label_dim:
+            class_labels = torch.eye(net.module.label_dim, device=device)[torch.randint(net.module.label_dim, size=[batch_size], device=device)]
         if class_idx is not None:
             class_labels[:, :] = 0
             class_labels[:, class_idx] = 1
