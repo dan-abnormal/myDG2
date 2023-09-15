@@ -12,7 +12,7 @@ import os
 import click
 import tqdm
 import pickle
-from myDG2.VGG_discriminator.vgg_discriminator import vgg_discriminator
+from VGG_discriminator.vgg_discriminator import vgg_discriminator
 import numpy as np
 import torch
 import PIL.Image
